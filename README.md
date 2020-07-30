@@ -1,6 +1,13 @@
 # Discord Email Bot
 Send emails to a discord channel. 
 
+## Note
+
+Run with Node.js flag `--unhandled-rejections=strict`:
+```bash
+node --unhandled-rejections=strict index.js
+```
+
 ### config.json
 The bot uses a json file to store configuration information. Below are their configurable paramenters:
 

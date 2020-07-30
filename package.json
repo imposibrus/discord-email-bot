@@ -9,7 +9,12 @@
   "author": "William Dann",
   "license": "ISC",
   "dependencies": {
-    "discord.js": "^11.4.2",
-    "imap": "^0.8.19"
+    "discord.js": "^12.2.0",
+    "imap": "^0.8.19",
+    "imapflow": "^1.0.47",
+    "mailparser": "^2.8.0"
+  },
+  "devDependencies": {
+    "@types/node": "^14.0.26"
   }
 }
