@@ -1,9 +1,15 @@
 # Discord Email Bot
 Send emails to a discord channel. 
 
-## Note
+## Prerequisites
 
-Run with Node.js flag `--unhandled-rejections=strict`:
+Create `config.json` from template and fill it with your credentials:
+```bash
+cp config.example.json config.json
+```
+
+## Note
+Always run with Node.js flag `--unhandled-rejections=strict`:
 ```bash
 node --unhandled-rejections=strict index.js
 ```

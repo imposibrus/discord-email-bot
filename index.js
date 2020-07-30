@@ -7,7 +7,7 @@ const fs       = require('fs');
 const EMAIL_CHECK_INTERVAL = 1000 * 10;
 // const IMAP_LINE_SEPARATOR = '\r\n';
 // const IMAP_HEADERS_SEPARATOR = IMAP_LINE_SEPARATOR.repeat(2);
-const config = JSON.parse(fs.readFileSync('config.json').toString());
+const config = require('./config.json');
 const imap = new Imap({
     user: config.user,
     password: config.password,
