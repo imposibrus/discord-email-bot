@@ -8,6 +8,12 @@ Create `config.json` from template and fill it with your credentials:
 cp config.example.json config.json
 ```
 
+## Run
+
+```bash
+docker-compose up -d --build
+```
+
 ## Note
 Always run with Node.js flag `--unhandled-rejections=strict`:
 ```bash

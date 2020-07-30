@@ -1,0 +1,9 @@
+{
+  "user": "bla-bla@gmail.com",
+  "password": "123456",
+  "host": "imap.gmail.com",
+  "port": 993,
+  "tls": true,
+  "token": "DISCORD_TOKEN_HERE",
+  "channel": "DISCORD_CHANNEL_HERE"
+}
