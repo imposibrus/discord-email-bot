@@ -1,20 +1,9 @@
+const { ImapFlow } = require('imapflow');
 const Discord  = require('discord.js');
-const Imap     = require('imap');
-// const inspect  = require('util').inspect;
-const fs       = require('fs');
-// const MailParser = require("mailparser").MailParser;
-
-const EMAIL_CHECK_INTERVAL = 1000 * 10;
-// const IMAP_LINE_SEPARATOR = '\r\n';
-// const IMAP_HEADERS_SEPARATOR = IMAP_LINE_SEPARATOR.repeat(2);
 const config = require('./config.json');
-const imap = new Imap({
-    user: config.user,
-    password: config.password,
-    host: config.host,
-    port: config.port,
-    tls: config.tls
-});
+
+const DISCORD_TEXT_LIMIT = 2048;
+const EMAIL_CHECK_INTERVAL = 1000 * 10;
 
 const bot = new Discord.Client();
 bot.login(config.token);
@@ -26,121 +15,104 @@ const botReady = new Promise((resolve) => {
     });
 });
 
-function openInbox(callback) {
-    imap.openBox('INBOX', false, callback);
-}
-  
-// Send the newest message to discord
-function sendNewest() {
-    openInbox(function(err, box) {
-        if (err) throw err;
+const main = async () => {
+    const client = new ImapFlow({
+        host: config.host,
+        port: config.port,
+        secure: config.tls,
+        auth: {
+            user: config.user,
+            pass: config.password,
+        }
+    });
+    // Wait until client connects and authorizes
+    await client.connect();
+    await botReady;
+    const channel = bot.channels.cache.get(config.channel);
 
-        imap.search([ 'UNSEEN' ], function(err, results) {
-            if (err) throw err;
+    // Select and lock a mailbox. Throws if mailbox does not exist
+    let lock = await client.getMailboxLock('INBOX');
 
-            if (!results.length) {
-                imap.end();
-                return;
+    try {
+        // fetch latest message source
+        let list = await client.search({seen: false});
+
+        for (const seq of list) {
+            const messageRange = `${seq}:${seq}`;
+            const message = await client.fetchOne(messageRange, {
+                envelope: true,
+                source: true,
+                bodyParts: true,
+                headers: true,
+                labels: true,
+                threadId: true,
+                size: true,
+                internalDate: true,
+                bodyStructure: true,
+                flags: true,
+                uid: true,
+            });
+            // console.log(`${message.uid}: ${message.envelope.subject}`);
+            // console.log('message', inspect(message, false, 8));
+
+            const exampleEmbed = new Discord.MessageEmbed()
+                .setColor('#0099ff')
+            ;
+            exampleEmbed.setTitle(truncateString(message.envelope.subject));
+            exampleEmbed.setAuthor(truncateString(message.envelope.from[0].address));
+            exampleEmbed.setTimestamp(new Date(message.envelope.date));
+
+            const textBodyPart = message.bodyStructure.childNodes.find(cn => cn.type === 'text/plain');
+            if (textBodyPart && textBodyPart.size < DISCORD_TEXT_LIMIT) {
+                const messageText = await downloadMessageContent(client, messageRange, textBodyPart.part);
+                exampleEmbed.setDescription(messageText);
+            } else {
+                exampleEmbed.setDescription('Текст сообщения слишком велик(');
             }
 
-            const f = imap.fetch(results, {
-                bodies: [''],
-                struct: true,
-            })
+            channel.send(exampleEmbed);
 
-            f.on('message', (message, index) => {
-                // const prefix = '(#' + index + ') ';
-                const exampleEmbed = new Discord.MessageEmbed()
-                    .setColor('#0099ff')
-                ;
-                const attrsDefer = new Deferred();
+            const res = await client.messageFlagsAdd(messageRange, ['\\Seen']);
+            if (!res) {
+                throw new Error('error mark as seen');
+            }
+        }
+    } finally {
+        lock.release();
+        await client.logout();
+        await client.close();
+    }
+};
 
-                message.on('body', (stream, info) => {
-                    // console.log('info', info);
-                    let buffer = '', count = 0;
-
-                    stream.on('data', function(chunk) {
-                        count += chunk.length;
-                        buffer += chunk.toString('utf8');
-                        // console.log(prefix + 'Body [%s] (%d/%d)', inspect(info.which), count, info.size);
-                    });
-
-                    stream.on('end', async () => {
-                        await botReady;
-                        const channel = bot.channels.cache.get(config.channel); // announcments channel
-                        const header = Imap.parseHeader(buffer);
-                        exampleEmbed.setTitle(truncateString(header.subject[0]));
-                        exampleEmbed.setAuthor(truncateString(header.from[0]));
-                        exampleEmbed.setTimestamp(new Date(header.date[0]));
-                        // console.log('channel', channel);
-                        // console.log('buffer', buffer);
-                        // const messageBody = buffer.split(IMAP_HEADERS_SEPARATOR).filter(String).pop();
-                        // // console.log('messageBody', messageBody);
-                        // const messageText = Buffer.from(messageBody, 'base64').toString('utf-8');
-                        // console.log('buffer decoded', messageText);
-                        // if (messageText.length < 2048) {
-                        //     exampleEmbed.setDescription(messageText);
-                        // } else {
-                        //     exampleEmbed.setDescription('Текст сообщения слишком велик(');
-                        // }
-                        channel.send(exampleEmbed);
-                        // console.log(prefix + 'Body [%s] Finished', inspect(info.which));
-                        // console.log(prefix + 'Parsed header: %s', inspect(header));
-
-                        attrsDefer.promise.then((attrs) => {
-                            imap.setFlags(attrs.uid, ['\\Seen'], function(err) {
-                                if (err) {
-                                    throw err;
-                                }
-                            });
-                        });
-                    });
-                });
-                message.on('attributes', function(attrs) {
-                    // console.log(prefix + 'Attributes: %s', inspect(attrs, false, 8));
-                    attrsDefer.resolve(attrs);
-                });
-                message.on('end', function() {
-                    // console.log(prefix + 'Finished');
-                });
-            });
-
-            f.on('error', function(err) {
-                console.log('Fetch error: ' + err);
-            });
-            f.on('end', function() {
-                // console.log('Done fetching all messages!');
-                imap.end();
-            });
-        });
-    });
-}
-
-imap.on('ready', function() {
-    sendNewest();
-});
-imap.on('end', function() {
-    // console.log('Connection ended');
-});
 
 setInterval(() => {
-    imap.connect();
+    main().catch(catchMain);
 }, EMAIL_CHECK_INTERVAL);
+main().catch(catchMain);
 
-imap.connect();
+
+function catchMain(err) {
+    console.error(err);
+    process.exit(-1);
+}
 
 function truncateString(str, len = 256) {
     const regexp = new RegExp(`^(.{${len - 2}).{2,}`);
     return str.replace(regexp, '$1…');
 }
 
-
-function Deferred() {
-    this.resolve = null;
-    this.reject = null;
-    this.promise = new Promise(function(resolve, reject) {
-        this.resolve = resolve;
-        this.reject = reject;
-    }.bind(this));
-    Object.freeze(this);
+async function downloadMessageContent(client, messageRange, part) {
+    return new Promise(async (resolve, reject) => {
+        const {content} = await client.download(messageRange, part);
+        if (!content) {
+            return reject('content not found in email body');
+        }
+        let messageText = '';
+        content.on('data', (chunk) => {
+            messageText += chunk.toString();
+        });
+        content.on('end', () => {
+            resolve(messageText);
+        });
+    });
 }

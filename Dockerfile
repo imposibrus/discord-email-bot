@@ -5,7 +5,7 @@ ENV WORKDIR=/usr/src/app
 WORKDIR $WORKDIR
 
 COPY package.json package-lock.json $WORKDIR/
-RUN npm ci --prefer-offline --no-audit
+RUN npm ci --prefer-offline --no-audit --production
 
 COPY index.js $WORKDIR/
 
