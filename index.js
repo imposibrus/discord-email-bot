@@ -3,7 +3,7 @@ const Discord  = require('discord.js');
 const config = require('./config.json');
 
 const DISCORD_TEXT_LIMIT = 2048;
-const EMAIL_CHECK_INTERVAL = 1000 * 10;
+const EMAIL_CHECK_INTERVAL = 1000 * 60;
 
 const bot = new Discord.Client();
 bot.login(config.token);
@@ -70,7 +70,7 @@ const main = async () => {
                 exampleEmbed.setDescription('Текст сообщения слишком велик(');
             }
 
-            channel.send(exampleEmbed);
+            await channel.send(exampleEmbed);
 
             const res = await client.messageFlagsAdd(messageRange, ['\\Seen']);
             if (!res) {
